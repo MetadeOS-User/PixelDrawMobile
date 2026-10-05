@@ -32,7 +32,6 @@ from kivy.uix.label import Label
 from kivy.uix.modalview import ModalView
 from kivy.uix.popup import Popup
 from kivy.uix.screenmanager import NoTransition, Screen, ScreenManager
-from kivy.uix.spinner import Spinner
 from kivy.uix.textinput import TextInput
 from kivy.uix.widget import Widget
 from kivy.utils import get_color_from_hex, platform
@@ -208,13 +207,13 @@ def _save_android(data, name):
 # Widgets
 # --------------------------------------------------------------------------
 def make_button(text, bg=BTN, **kw):
+    kw.setdefault("font_size", "16sp")
     return Button(
         text=text,
         background_normal="",
         background_down="",
         background_color=get_color_from_hex(bg),
         color=get_color_from_hex(contrast_color(bg)),
-        font_size="16sp",
         **kw
     )
 
@@ -387,11 +386,13 @@ class PixelDrawApp(App):
     # ---- tela inicial ---------------------------------------------------
     def _build_start(self):
         scr = Screen(name="start")
-        box = BoxLayout(orientation="vertical", padding=dp(32), spacing=dp(14))
-        box.add_widget(Widget())
+        box = BoxLayout(orientation="vertical", padding=dp(24), spacing=dp(12))
+        box.add_widget(Widget(size_hint_y=0.5))
 
         if os.path.exists(ICON):
-            logo = Image(source=ICON, size_hint_y=None, height=dp(120), fit_mode="contain")
+            # o logo ocupa o espaço que sobrar (até 140dp), então nada sai da tela
+            logo = Image(source=ICON, fit_mode="contain",
+                         size_hint_y=1, size_hint_max_y=dp(140))
             if logo.texture:
                 logo.texture.mag_filter = "nearest"
             box.add_widget(logo)
@@ -402,26 +403,37 @@ class PixelDrawApp(App):
         box.add_widget(Label(text="Escolha o tamanho da malha:", color=fg,
                              size_hint_y=None, height=dp(32)))
 
-        self.spinner = Spinner(
-            text=f"{GRID_SIZES[0]}x{GRID_SIZES[0]}",
-            values=[f"{s}x{s}" for s in GRID_SIZES],
-            size_hint_y=None, height=dp(52), font_size="18sp",
-            background_normal="", background_down="",
-            background_color=get_color_from_hex(BTN), color=fg,
-        )
-        box.add_widget(self.spinner)
+        # Botões sempre visíveis (sem lista suspensa): um toque escolhe o tamanho
+        self.selected_size = GRID_SIZES[0]
+        self.size_buttons = {}
+        row_h = dp(52)
+        gap = dp(10)
+        sizes = GridLayout(cols=3, spacing=gap, size_hint_y=None, height=row_h * 2 + gap)
+        for n in GRID_SIZES:
+            b = make_button(f"{n}x{n}", font_size="18sp")
+            b.bind(on_release=lambda inst, n=n: self._select_size(n))
+            self.size_buttons[n] = b
+            sizes.add_widget(b)
+        box.add_widget(sizes)
+        self._select_size(self.selected_size)
 
         start_btn = make_button("Começar arte!", bg=ACCENT, size_hint_y=None, height=dp(56))
         start_btn.bind(on_release=self._start)
         box.add_widget(start_btn)
 
-        box.add_widget(Widget())
+        box.add_widget(Widget(size_hint_y=0.5))
         scr.add_widget(box)
         return scr
 
+    def _select_size(self, n):
+        self.selected_size = n
+        for size, b in self.size_buttons.items():
+            bg = ACCENT if size == n else BTN
+            b.background_color = get_color_from_hex(bg)
+            b.color = get_color_from_hex(contrast_color(bg))
+
     def _start(self, *_):
-        n = int(self.spinner.text.split("x")[0])
-        self._open_drawing(n)
+        self._open_drawing(self.selected_size)
 
     # ---- tela de desenho ------------------------------------------------
     def _open_drawing(self, n):
